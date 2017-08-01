@@ -2067,6 +2067,8 @@ sctp_add_addresses_to_i_ia(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
 			   struct mbuf *m_at, int cnt_inits_to,
 			   uint16_t *padding_len, uint16_t *chunk_len)
 {
+
+   SCTPDBG(SCTP_DEBUG_OUTPUT4, "sctp_add_addresses_to_i_ia");
 	struct sctp_vrf *vrf = NULL;
 	int cnt, limit_out = 0, total_count;
 	uint32_t vrf_id;
@@ -2503,6 +2505,17 @@ sctp_is_addr_in_ep(struct sctp_inpcb *inp, struct sctp_ifa *ifa)
 }
 
 
+/* static struct sctp_ifa *
+ * sctp_is_addr_reachable_rtsocket(struct sctp_ifa *ifa,
+ *                 struct sockaddr *dest,
+ *                 uint8_t dest_is_loop,
+ *                 uint8_t dest_is_priv,
+ *                 sa_family_t fam)
+ * {
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT2, "setting up a routing socket to check addr:");
+ *     SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, dest)
+ *     return NULL;
+ * } */
 
 static struct sctp_ifa *
 sctp_choose_boundspecific_inp(struct sctp_inpcb *inp,
@@ -2670,6 +2683,7 @@ sctp_choose_boundspecific_stcb(struct sctp_inpcb *inp,
 	ifn_index = SCTP_GET_IF_INDEX_FROM_ROUTE(ro);
 	sctp_ifn = sctp_find_ifn( ifn, ifn_index);
 
+   SCTPDBG(SCTP_DEBUG_OUTPUT2, "sctp_ifn %s, ifn_index: %d, ifn: %s", sctp_ifn->ifn_name, ifn_index, ifn);
 	/*
 	 * first question, is the ifn we will emit on in our list?  If so,
 	 * we want that one. First we look for a preferred. Second, we go
@@ -2694,6 +2708,7 @@ sctp_choose_boundspecific_stcb(struct sctp_inpcb *inp,
 			}
 #endif
 #endif
+         SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, &sctp_ifa->address.sa);
 			if ((sctp_ifa->localifa_flags & SCTP_ADDR_DEFER_USE) && (non_asoc_addr_ok == 0))
 				continue;
 			if (sctp_is_addr_in_ep(inp, sctp_ifa)) {
@@ -2709,6 +2724,7 @@ sctp_choose_boundspecific_stcb(struct sctp_inpcb *inp,
 					continue;
 				}
 				atomic_add_int(&sifa->refcount, 1);
+            SCTPDBG(SCTP_DEBUG_OUTPUT2, "returning");
 				return (sifa);
 			}
 		}
@@ -2772,9 +2788,20 @@ sctp_choose_boundspecific_stcb(struct sctp_inpcb *inp,
 			/* address is being deleted */
 			continue;
 		}
+		SCTPDBG(SCTP_DEBUG_OUTPUT2, "----- trying addr:");
+		SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, &laddr->ifa->address.sa);
 		sifa = sctp_is_ifa_addr_preferred(laddr->ifa, dest_is_loop, dest_is_priv, fam);
 		if (sifa == NULL)
 			continue;
+
+/* #if defined(__Userspace_os_Linux)
+ *         sifa = sctp_is_addr_reachable_rtsocket(laddr->ifa, &ro->ro_dst,
+ *                 dest_is_loop, dest_is_priv, fam);
+ *         if (sifa == NULL){
+ *             SCTPDBG(SCTP_DEBUG_OUTPUT2, "Adresses don't match");
+ *             continue;
+ *         }
+ * #endif */
 		if (((non_asoc_addr_ok == 0) &&
 		     (sctp_is_addr_restricted(stcb, sifa))) ||
 		    (non_asoc_addr_ok &&
@@ -2785,6 +2812,8 @@ sctp_choose_boundspecific_stcb(struct sctp_inpcb *inp,
 		}
 		stcb->asoc.last_used_address = laddr;
 		atomic_add_int(&sifa->refcount, 1);
+
+   SCTPDBG(SCTP_DEBUG_OUTPUT2, "ret1");
 		return (sifa);
 	}
 	if (start_at_beginning == 0) {
@@ -3396,6 +3425,7 @@ sctp_source_address_selection(struct sctp_inpcb *inp,
 			      struct sctp_nets *net,
 			      int non_asoc_addr_ok, uint32_t vrf_id)
 {
+   SCTPDBG(SCTP_DEBUG_OUTPUT2, "sctp_source_address_selection");
 	struct sctp_ifa *answer;
 	uint8_t dest_is_priv, dest_is_loop;
 	sa_family_t fam;
@@ -3534,6 +3564,7 @@ sctp_source_address_selection(struct sctp_inpcb *inp,
 		/*
 		 * Bound all case
 		 */
+      SCTPDBG(SCTP_DEBUG_OUTPUT2, "bound all");
 		answer = sctp_choose_boundall(inp, stcb, net, ro, vrf_id,
 					      dest_is_priv, dest_is_loop,
 					      non_asoc_addr_ok, fam);
@@ -3548,6 +3579,8 @@ sctp_source_address_selection(struct sctp_inpcb *inp,
 							vrf_id,	dest_is_priv,
 							dest_is_loop,
 							non_asoc_addr_ok, fam);
+      SCTPDBG(SCTP_DEBUG_OUTPUT2, "bound specific answered:");
+      SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, &answer->address.sa);
 	} else {
 		answer = sctp_choose_boundspecific_inp(inp, ro, vrf_id,
 						       non_asoc_addr_ok,
@@ -4274,6 +4307,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 		if (net == NULL) {
 			ro = &iproute;
 			memset(&iproute, 0, sizeof(iproute));
+         SCTPDBG(SCTP_DEBUG_OUTPUT2, "net == NULL");
 #ifdef HAVE_SA_LEN
 			memcpy(&ro->ro_dst, to, to->sa_len);
 #else
@@ -4281,6 +4315,8 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 #endif
 		} else {
 			ro = (sctp_route_t *)&net->ro;
+         SCTPDBG(SCTP_DEBUG_OUTPUT2, "set ro to net");
+         SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, (struct sockaddr *)&net->ro._s_addr);
 		}
 		/* Now the address selection part */
 		ip->ip_dst.s_addr = ((struct sockaddr_in *)to)->sin_addr.s_addr;
@@ -4295,6 +4331,7 @@ sctp_lowlevel_chunk_output(struct sctp_inpcb *inp,
 					RTFREE(ro->ro_rt);
 					ro->ro_rt = NULL;
 				}
+            SCTPDBG(SCTP_DEBUG_OUTPUT2, "del route here");
 			}
 			if (net->src_addr_selected == 0) {
 				/* Cache the source address */
@@ -5316,6 +5353,7 @@ sctp_send_initiate(struct sctp_inpcb *inp, struct sctp_tcb *stcb, int so_locked
 		}
 	}
 	SCTPDBG(SCTP_DEBUG_OUTPUT4, "Sending INIT - calls lowlevel_output\n");
+   SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT4, (struct sockaddr *)&net->ro._l_addr);
 	if ((error = sctp_lowlevel_chunk_output(inp, stcb, net,
 	                                        (struct sockaddr *)&net->ro._l_addr,
 	                                        m, 0, NULL, 0, 0, 0, 0,
@@ -5331,6 +5369,7 @@ sctp_send_initiate(struct sctp_inpcb *inp, struct sctp_tcb *stcb, int so_locked
 			SCTP_STAT_INCR(sctps_lowlevelerr);
 		}
 	} else {
+      SCTPDBG(SCTP_DEBUG_OUTPUT4, "Sending INIT - calls lowlevel_output _other one\n");
 		stcb->asoc.ifp_had_enobuf = 0;
 	}
 	SCTP_STAT_INCR_COUNTER64(sctps_outcontrolchunks);
@@ -15026,6 +15065,33 @@ sctp_v6src_match_nexthop(struct sockaddr_in6 *src6, sctp_route_t *ro)
 int
 sctp_v4src_match_nexthop(struct sctp_ifa *sifa, sctp_route_t *ro)
 {
+/*     SCTPDBG(SCTP_DEBUG_OUTPUT1, "Userspace match next hop");
+ * #ifdef INET
+ *     struct sockaddr_in *sin, *mask;
+ *     struct ifaddr *ifa;
+ *     struct in_addr srcnetaddr, gwnetaddr;
+ *
+ *     if (ro == NULL || ro->ro_rt == NULL ||
+ *         sifa->address.sa.sa_family != AF_INET) {
+ *         return (0);
+ *     }
+ *     ifa = (struct ifaddr *)sifa->ifa;
+ *     mask = (struct sockaddr_in *)(ifa->ifa_netmask);
+ *     sin = &sifa->address.sin;
+ *     srcnetaddr.s_addr = (sin->sin_addr.s_addr & mask->sin_addr.s_addr);
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT1, "match_nexthop4: src address is ");
+ *     SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, &sifa->address.sa);
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT1, "network address is %x\n", srcnetaddr.s_addr);
+ *
+ *     sin = (struct sockaddr_in *)ro->ro_rt->rt_gateway;
+ *     gwnetaddr.s_addr = (sin->sin_addr.s_addr & mask->sin_addr.s_addr);
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT1, "match_nexthop4: nexthop is ");
+ *     SCTPDBG_ADDR(SCTP_DEBUG_OUTPUT2, ro->ro_rt->rt_gateway);
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT1, "network address is %x\n", gwnetaddr.s_addr);
+ *     if (srcnetaddr.s_addr == gwnetaddr.s_addr) {
+ *         return (1);
+ *     }
+ * #endif */
     return (0);
 }
 

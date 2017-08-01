@@ -678,6 +678,7 @@ MALLOC_DECLARE(SCTP_M_SOCKOPT);
  */
 /* This could return VOID if the index works but for BSD we provide both. */
 #define SCTP_GET_IFN_VOID_FROM_ROUTE(ro) (void *)ro->ro_rt->rt_ifp
+/* #define SCTP_GET_IF_INDEX_FROM_ROUTE(ro) sctp_get_if_index_from_route(ro) */
 #define SCTP_GET_IF_INDEX_FROM_ROUTE(ro) 1 /* compiles...  TODO use routing socket to determine */
 #define SCTP_ROUTE_HAS_VALID_IFN(ro) ((ro)->ro_rt && (ro)->ro_rt->rt_ifp)
 #endif
@@ -890,6 +891,15 @@ static inline void sctp_userspace_rtfree(sctp_rtentry_t *rt)
 	rt = NULL;
 }
 #define rtfree(arg1) sctp_userspace_rtfree(arg1)
+
+/* int sctp_get_if_index_from_route(sctp_route_t *ro);
+ * int sctp_get_if_index_from_route(sctp_route_t *ro) {
+ * #if defined(__Userspace_os_Linux)
+ *     SCTPDBG(SCTP_DEBUG_OUTPUT2, "if in ro: %d", ro->ro_rt->rt_ifp->if_xname);
+ *     return 1;
+ * #endif
+ *     return 1;
+ * } */
 
 
 /*************************/
