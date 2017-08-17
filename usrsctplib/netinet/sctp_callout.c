@@ -117,7 +117,13 @@ sctp_os_timer_start(sctp_os_timer_t *c, int to_ticks, void (*ftn) (void *),
 	c->c_flags = (SCTP_CALLOUT_ACTIVE | SCTP_CALLOUT_PENDING);
 	c->c_func = ftn;
 	c->c_time = ticks + to_ticks;
-	TAILQ_INSERT_TAIL(&SCTP_BASE_INFO(callqueue), c, tqe);
+
+	struct sctp_timer *tmr = (struct sctp_timer *)arg;
+	if (tmr->type == SCTP_TIMER_TYPE_DPR)
+		// insert the DPR timers at head to give them highest priority
+		TAILQ_INSERT_HEAD(&SCTP_BASE_INFO(callqueue), c, tqe);
+	else
+		TAILQ_INSERT_TAIL(&SCTP_BASE_INFO(callqueue), c, tqe);
 	SCTP_TIMERQ_UNLOCK();
 }
 
@@ -182,7 +188,7 @@ sctp_timeout(void *arg SCTP_UNUSED)
 #endif
 
 #if defined(__Userspace__)
-#define TIMEOUT_INTERVAL 10
+#define TIMEOUT_INTERVAL 5
 
 void *
 user_sctp_timer_iterate(void *arg)

@@ -386,6 +386,7 @@ extern void getwintimeofday(struct timeval *tv);
 #define SCTP_OUTPUT_FROM_DRAIN          15
 #define SCTP_OUTPUT_FROM_CLOSING        16
 #define SCTP_OUTPUT_FROM_SOCKOPT        17
+#define SCTP_OUTPUT_FROM_DPR            18
 
 /* SCTP chunk types are moved sctp.h for application (NAT, FW) use */
 
@@ -566,8 +567,9 @@ extern void getwintimeofday(struct timeval *tv);
 #define SCTP_TIMER_TYPE_ZERO_COPY       18
 #define SCTP_TIMER_TYPE_ZCOPY_SENDQ     19
 #define SCTP_TIMER_TYPE_PRIM_DELETED    20
+#define SCTP_TIMER_TYPE_DPR		21
 /* add new timers here - and increment LAST */
-#define SCTP_TIMER_TYPE_LAST            21
+#define SCTP_TIMER_TYPE_LAST            22
 
 #define SCTP_IS_TIMER_TYPE_VALID(t)	(((t) > SCTP_TIMER_TYPE_NONE) && \
 					 ((t) < SCTP_TIMER_TYPE_LAST))
@@ -671,7 +673,7 @@ extern void getwintimeofday(struct timeval *tv);
 /* SCTP DEBUG Switch parameters */
 #define SCTP_DEBUG_TIMER1	0x00000001
 #define SCTP_DEBUG_TIMER2	0x00000002	/* unused */
-#define SCTP_DEBUG_TIMER3	0x00000004	/* unused */
+#define SCTP_DEBUG_TIMER3	0x00000004	/* DPR */
 #define SCTP_DEBUG_TIMER4	0x00000008
 #define SCTP_DEBUG_OUTPUT1	0x00000010
 #define SCTP_DEBUG_OUTPUT2	0x00000020

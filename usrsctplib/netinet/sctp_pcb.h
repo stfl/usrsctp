@@ -615,16 +615,11 @@ int register_ulp_info (struct socket *, void *);
 struct sctp_tcb {
 	struct socket *sctp_socket;	/* back pointer to socket */
 	struct sctp_inpcb *sctp_ep;	/* back pointer to ep */
-	LIST_ENTRY(sctp_tcb) sctp_tcbhash;	/* next link in hash
-						 * table */
-        LIST_ENTRY(sctp_tcb) sctp_tcblist;	/* list of all of the
-						 * TCB's */
-        LIST_ENTRY(sctp_tcb) sctp_tcbasocidhash;	/* next link in asocid
-							 * hash table
-							 */
-        LIST_ENTRY(sctp_tcb) sctp_asocs;	/* vtag hash list */
-	struct sctp_block_entry *block_entry;	/* pointer locked by  socket
-						 * send buffer */
+	LIST_ENTRY(sctp_tcb) sctp_tcbhash;	/* next link in hash table */
+	LIST_ENTRY(sctp_tcb) sctp_tcblist;	/* list of all of the TCB's */
+	LIST_ENTRY(sctp_tcb) sctp_tcbasocidhash;	/* next link in asocid hash table */
+	LIST_ENTRY(sctp_tcb) sctp_asocs;	/* vtag hash list */
+	struct sctp_block_entry *block_entry;	/* pointer locked by  socket send buffer */
 	struct sctp_association asoc;
 	/*-
 	 * freed_by_sorcv_sincelast is protected by the sockbuf_lock NOT the

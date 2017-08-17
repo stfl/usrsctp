@@ -153,6 +153,8 @@ struct sctp_sndrcvinfo {
 	uint16_t sinfo_keynumber;
 	uint16_t sinfo_keynumber_valid;
 	uint8_t  __reserve_pad[SCTP_ALIGN_RESV_PAD];
+	struct timeval rtx_deadline;
+	uint8_t dpr_enabled;
 };
 
 struct sctp_extrcvinfo {
@@ -195,6 +197,11 @@ struct sctp_sndinfo {
 struct sctp_prinfo {
 	uint16_t pr_policy;
 	uint32_t pr_value;
+};
+
+struct sctp_dprinfo {
+	uint16_t dpr_enabled;
+	struct timeval deadline;
 };
 
 struct sctp_default_prinfo {
@@ -253,6 +260,7 @@ struct sctp_sendv_spa {
 	struct sctp_sndinfo sendv_sndinfo;
 	struct sctp_prinfo sendv_prinfo;
 	struct sctp_authinfo sendv_authinfo;
+	struct sctp_dprinfo sendv_dprinfo;
 };
 
 #define SCTP_SEND_SNDINFO_VALID  0x00000001
@@ -1114,7 +1122,15 @@ struct sctpstat {
 	uint32_t  sctps_send_cwnd_avoid;  /* Send cwnd full  avoidance, already max burst inflight to net */
 	uint32_t  sctps_fwdtsn_map_over;  /* number of map array over-runs via fwd-tsn's */
 	uint32_t  sctps_queue_upd_ecne;  /* Number of times we queued or updated an ECN chunk on send queue */
-	uint32_t  sctps_reserved[31];     /* Future ABI compat - remove int's from here when adding new */
+
+	/* DPR related */
+	uint32_t  sctps_timodpr;			 /* Number of dpr timers expired */
+	uint32_t  sctps_dpr_flagged;         /* Number of DPR chunks flagged for retransmission */
+	/* uint32_t  sctps_dpr_pre_deadline;         [> Number of chunks retransmitted before the deadline <] */
+	/* double  sctps_dpr_avg_delay_timer; [> Average delay of the timer after the deadline <] */
+	/* double  sctps_dpr_avg_delay_tx;	 [> Average delay of the transmission after the deadline <] */
+
+	uint32_t  sctps_reserved[29];        /* Future ABI compat - remove int's from here when adding new */
 };
 
 #define SCTP_STAT_INCR(_x) SCTP_STAT_INCR_BY(_x,1)

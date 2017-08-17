@@ -7711,7 +7711,7 @@ sctp_move_to_outqueue(struct sctp_tcb *stcb,
 one_more_time:
 	/*sa_ignore FREED_MEMORY*/
 	sp = TAILQ_FIRST(&strq->outqueue);
-	if (sp == NULL) {
+	if (sp == NULL) {/*{{{*/
 		if (send_lock_up == 0) {
 			SCTP_TCB_SEND_LOCK(stcb);
 			send_lock_up = 1;
@@ -7734,7 +7734,7 @@ one_more_time:
 			send_lock_up = 0;
 		}
 		goto out_of;
-	}
+	}/*}}}*/
 	if ((sp->msg_is_complete) && (sp->length == 0)) {
 		if (sp->sender_all_done) {
 			/* We are doing differed cleanup. Last
@@ -8092,6 +8092,9 @@ re_look:
 
 	chk->rec.data.timetodrop = sp->ts;
 	chk->flags = sp->act_flags;
+
+	chk->dpr_enabled = sp->dpr_enabled;
+	chk->rec.data.rtx_deadline = sp->rtx_deadline;
 
 	if (sp->net) {
 		chk->whoTo = sp->net;
@@ -10369,6 +10372,26 @@ sctp_chunk_retransmission(struct sctp_inpcb *inp,
 				sctp_timer_start(SCTP_TIMER_TYPE_SEND, inp, stcb, net);
 				tmr_started = 1;
 			}
+
+			if (chk->rec.data.rtx_deadline.tv_sec != 0 && chk->rec.data.rtx_deadline.tv_usec != 0) {
+				struct timeval now_call;
+
+				(void)SCTP_GETTIME_TIMEVAL(&now_call);
+				timersub(&now_call, &chk->rec.data.rtx_deadline, &now_call);
+				if (now_call.tv_sec < 0 || now_call.tv_usec < 0) {
+					/* SCTPDBG(SCTP_DEBUG_TIMER3, "Pre deadline RTX TSN:\t\t%10lu [ %ld.%06ld ](%4dms)\n",
+					 *         ntohl(chk->rec.data.tsn),
+					 *         chk->rec.data.rtx_deadline.tv_sec, chk->rec.data.rtx_deadline.tv_usec,
+					 *         (now_call.tv_sec*1000 + now_call.tv_usec/1000));
+					 * SCTP_STAT_INCR(sctps_dpr_pre_deadline); */
+				} else {
+					SCTPDBG(SCTP_DEBUG_TIMER3, "Sending RTX of DPR Chunk TSN:\t%10lu [ %ld.%06ld ](+%3dms)\n",
+							ntohl(chk->rec.data.tsn),
+							chk->rec.data.rtx_deadline.tv_sec, chk->rec.data.rtx_deadline.tv_usec,
+							(now_call.tv_sec*1000 + now_call.tv_usec/1000));
+				}
+			} 
+
 			/* Now lets send it, if there is anything to send :> */
 			if ((error = sctp_lowlevel_chunk_output(inp, stcb, net,
 			                                        (struct sockaddr *)&net->ro._l_addr, m,
@@ -13420,6 +13443,8 @@ sctp_copy_it_in(struct sctp_tcb *stcb,
 			sp->net = NULL;
 		}
 		sctp_set_prsctp_policy(sp);
+		sp->rtx_deadline = srcv->rtx_deadline;
+		sp->dpr_enabled = srcv->dpr_enabled;
 	}
 out_now:
 	return (sp);
@@ -14180,7 +14205,8 @@ sctp_lower_sosend(struct socket *so,
 		SOCKBUF_LOCK(&so->so_snd);
 		inqueue_bytes = stcb->asoc.total_output_queue_size - (stcb->asoc.chunks_on_out_queue * sizeof(struct sctp_data_chunk));
 		while ((SCTP_SB_LIMIT_SND(so) < (inqueue_bytes + local_add_more)) ||
-		       ((stcb->asoc.stream_queue_cnt+stcb->asoc.chunks_on_out_queue) >= SCTP_BASE_SYSCTL(sctp_max_chunks_on_queue))) {
+				((stcb->asoc.stream_queue_cnt+stcb->asoc.chunks_on_out_queue) >=
+				 SCTP_BASE_SYSCTL(sctp_max_chunks_on_queue))) {
 			SCTPDBG(SCTP_DEBUG_OUTPUT1,"pre_block limit:%u <(inq:%d + %d) || (%d+%d > %d)\n",
 			        (unsigned int)SCTP_SB_LIMIT_SND(so),
 			        inqueue_bytes,
@@ -14292,7 +14318,7 @@ skip_preblock:
 			TAILQ_INSERT_TAIL(&strm->outqueue, sp, next);
 			stcb->asoc.ss_functions.sctp_ss_add_to_stream(stcb, asoc, strm, sp, 1);
 			SCTP_TCB_SEND_UNLOCK(stcb);
-		} else {
+		} else { // end if (strm->last_msg_incomplete == 0)
 			SCTP_TCB_SEND_LOCK(stcb);
 			sp = TAILQ_LAST(&strm->outqueue, sctp_streamhead);
 			SCTP_TCB_SEND_UNLOCK(stcb);
@@ -14618,6 +14644,31 @@ skip_preblock:
 			strm->last_msg_incomplete = 0;
 			asoc->stream_locked = 0;
 		}
+
+		if (sp->dpr_enabled) {
+			struct timeval now;
+			(void)SCTP_GETTIME_TIMEVAL(&now);
+
+/*             (void)SCTP_GETTIME_TIMEVAL(&rtx_deadline);
+ *             tv.tv_sec = 0;
+ *             tv.tv_usec = (60 * 1000) % 1000000;
+ * #ifndef __FreeBSD__
+ *             timeradd(&rtx_deadline, &tv, &rtx_deadline);
+ * #else
+ *             timevaladd(&rtx_deadline, &tv);
+ * #endif
+ *             rtx_deadline.tv_usec = rtx_deadline.tv_usec / 5000 * 5000; // round down to next 5 ms */
+
+			timersub(&sp->rtx_deadline, &now, &now);
+			SCTPDBG(SCTP_DEBUG_TIMER3, "Starting DRP Timer for: [ %ld.%06ld ](+%3dms)\n",
+					sp->rtx_deadline.tv_sec, sp->rtx_deadline.tv_usec,
+					(now.tv_sec*1000 + now.tv_usec/1000));
+
+			sctp_timer_start_dpr(t_inp, stcb, net, sp->rtx_deadline);
+			/* sp->dpr_enabled = 1; */
+			/* sp->rtx_deadline = rtx_deadline; */
+		}
+
 		SCTP_TCB_SEND_UNLOCK(stcb);
 #if defined(__APPLE__)
 #if defined(APPLE_LEOPARD)
@@ -14630,8 +14681,9 @@ skip_preblock:
 #endif
 			got_all_of_the_send = 1;
 		}
-	} else {
+	} else { // end if (top == NULL)
 		/* We send in a 0, since we do NOT have any locks */
+		SCTPDBG(SCTP_DEBUG_TIMER3, "calling sctp_msg_append()\n");
 		error = sctp_msg_append(stcb, net, top, srcv, 0);
 		top = NULL;
 		if (srcv->sinfo_flags & SCTP_EOF) {

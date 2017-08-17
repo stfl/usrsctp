@@ -83,6 +83,7 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctputil.c 320260 2017-06-23 08:34:01Z tuex
 #endif
 #endif
 
+
 extern const struct sctp_cc_functions sctp_cc_functions[];
 extern const struct sctp_ss_functions sctp_ss_functions[];
 
@@ -1979,6 +1980,44 @@ sctp_timeout_handler(void *t)
 		sctp_chunk_output(inp, stcb, SCTP_OUTPUT_FROM_AUTOCLOSE_TMR, SCTP_SO_NOT_LOCKED);
 		did_output = 0;
 		break;
+
+	case SCTP_TIMER_TYPE_DPR: {
+		struct sctp_dpr_timer *dpr_timer_entry;
+
+/*         struct timeval now, diff;
+ *         (void)SCTP_GETTIME_TIMEVAL(&now);
+ *         SCTPDBG(SCTP_DEBUG_TIMER3, "\nsctp_timeout_handler called for DPR now:[ %ld.%06ld ]\n",
+ *             now.tv_sec, now.tv_usec);
+ *
+ *         TAILQ_FOREACH(dpr_timer_entry, &stcb->asoc.dpr_timers_head, next) {
+ *             timersub(&now, &dpr_timer_entry->rtx_deadline, &diff);
+ *             SCTPDBG(SCTP_DEBUG_TIMER3, "timer in Q: [ %ld.%06ld ](+%3dms)\n",
+ *                     dpr_timer_entry->rtx_deadline.tv_sec, dpr_timer_entry->rtx_deadline.tv_usec,
+ *                     (diff.tv_sec*1000 + diff.tv_usec/1000));
+ *         } */
+
+		dpr_timer_entry = TAILQ_FIRST(&stcb->asoc.dpr_timers_head);
+		if ((dpr_timer_entry == NULL) || (&dpr_timer_entry->tmr != tmr)) {
+			SCTP_PRINTF("ERROR: something went wrong with the DPR timer tailq\n");
+			goto get_out;
+		}
+
+		SCTP_STAT_INCR(sctps_timodpr);
+		sctp_ucount_incr(stcb->asoc.timodpr_cnt);
+
+		/* SCTP_TCB_LOCK(stcb); */
+		sctp_dpr_timer(stcb, &dpr_timer_entry->rtx_deadline);
+		
+		TAILQ_REMOVE(&stcb->asoc.dpr_timers_head, dpr_timer_entry, next); // remove the first element
+		free(dpr_timer_entry);
+		/* SCTP_TCB_UNLOCK(stcb); */
+
+		if (stcb->asoc.sent_queue_retran_cnt > 0) {
+			sctp_chunk_output(inp, stcb, SCTP_OUTPUT_FROM_DPR, SCTP_SO_NOT_LOCKED);
+		}
+		break;
+		}
+
 	case SCTP_TIMER_TYPE_ASOCKILL:
 		if ((stcb == NULL) || (inp == NULL)) {
 			break;
@@ -2064,6 +2103,113 @@ out_no_decr:
 #if defined(__FreeBSD__) && __FreeBSD_version >= 801000
 	CURVNET_RESTORE();
 #endif
+}
+
+/* void
+ * sctp_timer_start_dpr_posix(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
+ *         struct sctp_nets *net, struct timeval deadline)
+ * {
+ *     struct sigevent sevp;
+ *
+ *     timer_create(CLOCK_REALTIME, &sevp, timer_t *timerid);
+ *     timer_settime(2); // Arm (start) or disarm (stop) a timer.
+ * } */
+
+void
+sctp_timer_start_dpr(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
+		struct sctp_nets *net, struct timeval deadline)
+{
+	uint32_t to_ticks;
+	struct sctp_timer *tmr = NULL;
+	struct sctp_dpr_timer *dpr_timer_entry, *dpr_timer_entry_new;
+	struct timeval now, diff;
+	uint32_t ms_gone_by;
+	/* int siz; */
+
+	if (net == NULL || stcb == NULL) {
+		SCTP_PRINTF("ERROR: something is NULL\n");
+		return;
+	}
+
+	dpr_timer_entry = TAILQ_LAST(&stcb->asoc.dpr_timers_head, sctp_dpr_timers_head);
+	if ((dpr_timer_entry != NULL)  && 
+#ifndef __FreeBSD__
+			(timercmp(&dpr_timer_entry->rtx_deadline, &deadline, ==))
+#else
+			(timevalcmp(&dpr_timer_entry->rtx_deadline, &deadline, ==))
+#endif
+	   ) {
+		// this DPR Timer exists already.. actually no need to check if it is really running
+		if (!SCTP_OS_TIMER_PENDING(&dpr_timer_entry->tmr.timer)) {
+			SCTP_PRINTF("ERROR: found DPR timer in list that is not running!\n");
+			return;
+		} else {
+			/* SCTPDBG(SCTP_DEBUG_TIMER3, "DPR timer [ %ld.%06ld ] already running\n",
+			 *         deadline.tv_sec, deadline.tv_usec); */
+			return;
+		}
+	} 
+
+	SCTP_GETTIME_TIMEVAL(&now);
+	/* TAILQ_FOREACH(dpr_timer_entry, &stcb->asoc.dpr_timers_head, next) {
+	 *     timersub(&now, &dpr_timer_entry->rtx_deadline, &diff);
+	 *     SCTPDBG(SCTP_DEBUG_TIMER3, "timer in Q before: [ %ld.%06ld ](+%3dms)\n",
+	 *             dpr_timer_entry->rtx_deadline.tv_sec, dpr_timer_entry->rtx_deadline.tv_usec,
+	 *             (diff.tv_sec*1000 + diff.tv_usec/1000));
+	 * } */
+
+	// Timer not found: create timer entry
+	SCTP_MALLOC(dpr_timer_entry_new, struct sctp_dpr_timer *, sizeof(struct sctp_dpr_timer), SCTP_M_DPR);
+	if (dpr_timer_entry_new == NULL) {
+		/* gak out of memory */
+		SCTPDBG(SCTP_DEBUG_TIMER3, "out of memory\n");
+		return;
+	}
+
+	dpr_timer_entry_new->rtx_deadline = deadline;
+
+	tmr = &dpr_timer_entry_new->tmr;
+	SCTP_OS_TIMER_INIT(&tmr->timer);
+
+	if (stcb) {
+		SCTP_TCB_LOCK(stcb);
+	}
+	// add to list
+	TAILQ_INSERT_TAIL(&stcb->asoc.dpr_timers_head, dpr_timer_entry_new, next);
+
+	/* calcule to_ticks from actual timeval timestamp */
+	timersub(&deadline, &now, &diff);
+	ms_gone_by = (uint32_t)(diff.tv_sec * 1000) + (uint32_t)(diff.tv_usec / 1000);
+	to_ticks = MSEC_TO_TICKS(ms_gone_by);
+
+	if ((to_ticks <= 0) || (tmr == NULL)) {
+		SCTP_PRINTF("ERROR: %s: %d:software error to_ticks:%d tmr:DPR not set ??\n",
+			__func__, to_ticks, (void *)tmr);
+		goto get_out;
+	}
+
+	tmr->stopped_from = 0;
+	tmr->type = SCTP_TIMER_TYPE_DPR;
+	tmr->ep = (void *)inp;
+	tmr->tcb = (void *)stcb;
+	tmr->net = (void *)net;
+	tmr->self = (void *)tmr;
+#if defined(__FreeBSD__) && __FreeBSD_version >= 800000
+	tmr->vnet = (void *)curvnet;
+#endif
+#ifndef __Panda__
+	tmr->ticks = sctp_get_tick_count();
+#endif
+	/* timersub(&now, &deadline, &diff);
+	 * SCTPDBG(SCTP_DEBUG_TIMER3, "DPR timer [ %ld.%06ld ](+%dms)\n",
+	 *                 deadline.tv_sec, deadline.tv_usec, ms_gone_by); */
+	(void)SCTP_OS_TIMER_START(&tmr->timer, to_ticks, sctp_timeout_handler, tmr);
+
+get_out:
+	if (stcb) {
+		SCTP_TCB_UNLOCK(stcb);
+	}
+	return;
 }
 
 void
@@ -5193,6 +5339,8 @@ sctp_release_pr_sctp_chunk(struct sctp_tcb *stcb, struct sctp_tmit_chunk *tp1,
 			 * we don't have to fudge the TSN.
 			 */
 			chk = tp1;
+
+			SCTPDBG(SCTP_DEBUG_TIMER3, "PR release TSN: %10lu\n", ntohl(chk->rec.data.tsn));
 			ret_sz += tp1->book_size;
 			sctp_free_bufspace(stcb, &stcb->asoc, tp1, 1);
 			if (sent) {

@@ -69,7 +69,7 @@ sctp_audit_retranmission_queue(struct sctp_association *asoc)
 {
 	struct sctp_tmit_chunk *chk;
 
-	SCTPDBG(SCTP_DEBUG_TIMER4, "Audit invoked on send queue cnt:%d onqueue:%d\n",
+	SCTPDBG(SCTP_DEBUG_TIMER3, "Audit invoked on send queue cnt:%d onqueue:%d\n",
 			asoc->sent_queue_retran_cnt,
 			asoc->sent_queue_cnt);
 	asoc->sent_queue_retran_cnt = 0;
@@ -90,7 +90,7 @@ sctp_audit_retranmission_queue(struct sctp_association *asoc)
 			sctp_ucount_incr(asoc->sent_queue_retran_cnt);
 		}
 	}
-	SCTPDBG(SCTP_DEBUG_TIMER4, "Audit completes retran:%d onqueue:%d\n",
+	SCTPDBG(SCTP_DEBUG_TIMER3, "Audit completes retran:%d onqueue:%d\n",
 		asoc->sent_queue_retran_cnt,
 		asoc->sent_queue_cnt);
 }
@@ -1618,3 +1618,116 @@ sctp_autoclose_timer(struct sctp_inpcb *inp,
 	}
 }
 
+/* void
+ * sctp_dpr_timer_posix(struct sctp_tcb *stcb, struct timeval *deadline)
+ * {
+ *     timer_getoverrun(2); // Return the overrun count for the last timer expiration.
+ *     timer_delete(2); // Disarm and delete a timer.
+ * } */
+
+void
+sctp_dpr_timer(struct sctp_tcb *stcb, struct timeval *deadline)
+{
+	struct timeval now, diff;
+	struct sctp_tmit_chunk *chk;
+	struct sctp_nets *alt;
+	/* struct sctp_nets *net; */
+	/* struct sctp_dpr_timer *dpr_timer_tmp; */
+
+/* #if defined(SCTP_DPR_TIMER_AUDIT) */
+	(void)SCTP_GETTIME_TIMEVAL(&now);
+	timersub(&now, deadline, &diff);
+	SCTPDBG(SCTP_DEBUG_TIMER3, "sctp_dpr_timer() now:[ %ld.%06ld ] dl:[ %ld.%06ld ]\t\t(+%3dms)\n",
+			now.tv_sec, now.tv_usec,
+			deadline->tv_sec, deadline->tv_usec,
+	        (diff.tv_sec*1000 + diff.tv_usec/1000));
+
+	/* if (stcb->asoc.timeodpr_cnt == 0) // first */
+	// TODO calculate avg
+
+/* #endif */
+
+
+	/* TAILQ_FOREACH(net, &stcb->asoc.nets, sctp_next) {
+	 *     SCTPDBG(SCTP_DEBUG_TIMER3, "net: %s rtt: %.1fms fl:%5d cwnd:%5d\n",
+	 *             net->ro._s_addr->ifn_p->ifn_name, (double)net->rtt/1000, net->flight_size, net->cwnd);
+	 * } */
+
+
+	TAILQ_FOREACH(chk, &stcb->asoc.sent_queue, sctp_next) {
+		if (
+			(chk->sent < SCTP_DATAGRAM_RESEND) &&	// ignore NR_ACKED chunks
+			/* (chk->snd_count < 2) &&					// has already been retransmitted */
+			(chk->rec.data.rtx_deadline.tv_sec != 0 && chk->rec.data.rtx_deadline.tv_usec != 0) &&
+#ifndef __FreeBSD__
+            (timercmp(&now, &chk->rec.data.rtx_deadline, >=)) ){
+#else
+            (timevalcmp(&now, &chk->rec.data.rtx_deadline, >=)) ){
+#endif
+			if (chk->snd_count < 2) {
+			/* Yes so RTX it now */
+
+			alt = sctp_find_alternate_net(stcb, chk->whoTo, 0);
+			sctp_ucount_incr(stcb->asoc.sent_queue_retran_cnt);
+
+			SCTP_STAT_INCR(sctps_dpr_flagged);
+			sctp_ucount_incr(stcb->asoc.dpr_chunks_flagged);
+
+			timersub(&now, &chk->rec.data.rtx_deadline, &diff);
+			SCTPDBG(SCTP_DEBUG_TIMER3, "found chunk to RTX  TSN:%10lu C:%d S:%d "
+					"[ %ld.%06ld ](+%3dms) "
+					"Q snd:%2u snt:%3u rt:%2u rm:%u ifa: %s rtt:%.1fms fl:%d cwnd:%d alt: %s\n",
+               ntohl(chk->rec.data.tsn), chk->snd_count, chk->sent,
+			   chk->rec.data.rtx_deadline.tv_sec, chk->rec.data.rtx_deadline.tv_usec,
+			   (diff.tv_sec*1000 + diff.tv_usec/1000),
+			   stcb->asoc.send_queue_cnt, stcb->asoc.sent_queue_cnt,
+			   stcb->asoc.sent_queue_retran_cnt, stcb->asoc.sent_queue_cnt_removeable,
+			   chk->whoTo->ro._s_addr->ifn_p->ifn_name, (double)chk->whoTo->rtt/1000,
+			   chk->whoTo->flight_size, chk->whoTo->cwnd, alt->ro._s_addr->ifn_p->ifn_name);
+			/* SCTPDBG_ADDR(SCTP_DEBUG_TIMER3, &chk->whoTo->ro._s_addr->address.sa); */
+
+			if (chk->whoTo == alt)
+				SCTP_PRINTF("WARNING: DPR should retran to other interface");
+
+			chk->sent = SCTP_DATAGRAM_RESEND;
+			chk->flags |= CHUNK_FLAGS_FRAGMENT_OK;
+			/* chk->rec.data.doing_fast_retransmit = 1; */
+
+			sctp_flight_size_decrease(chk);
+			sctp_total_flight_decrease(stcb, chk);
+
+			chk->whoTo = alt;
+			atomic_add_int(&alt->ref_count, 1);
+
+			/* ret = sctp_chunk_retransmission(inp, stcb, asoc, &num_out, &now, &now_filled, &fr_done, so_locked); */
+			// TODO add stats to SCTP_STATS and asoc->dpr_timer
+			// TODO move from sent_queue to outqueue
+			// incr snd_count
+
+			// TODO check outqueue if chunks are already scheduled. put them to the fron of the queue? 
+
+			// do not abandon chunk > regular prsctp will handle that
+			} /*else {
+				timersub(&now, &chk->rec.data.rtx_deadline, &diff);
+				SCTPDBG(SCTP_DEBUG_TIMER3, "found chunk to Release TSN:%10lu C:%d S:%d "
+						"[ %ld.%06ld ](+%3dms)",
+						ntohl(chk->rec.data.tsn), chk->snd_count, chk->sent,
+						chk->rec.data.rtx_deadline.tv_sec, chk->rec.data.rtx_deadline.tv_usec,
+						(diff.tv_sec*1000 + diff.tv_usec/1000));
+			} */
+		}
+	}
+
+
+	/* if (stcb->asoc.sent_queue_retran_cnt > 0) {
+	 *     TAILQ_FOREACH(net, &stcb->asoc.nets, sctp_next) {
+	 *         SCTPDBG(SCTP_DEBUG_TIMER3, "net: %s rtt: %.1fms fl:%5d cwnd:%5d\n",
+	 *                 net->ro._s_addr->ifn_p->ifn_name, (double)net->rtt/1000, net->flight_size, net->cwnd);
+	 *     }
+	 * } */
+
+	/* TODO check send_queue > if there is a chunk we are WAY too slow */
+
+
+	return;
+}

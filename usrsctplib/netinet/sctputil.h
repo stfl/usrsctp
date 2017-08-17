@@ -92,6 +92,15 @@ sctp_notify_stream_reset_add(struct sctp_tcb *stcb, uint16_t numberin,
 void
 sctp_notify_stream_reset_tsn(struct sctp_tcb *stcb, uint32_t sending_tsn, uint32_t recv_tsn, int flag);
 
+
+void
+sctp_timer_start_dpr_posix(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
+		struct sctp_nets *net, struct timeval deadline);
+
+void
+sctp_timer_start_dpr(struct sctp_inpcb *inp, struct sctp_tcb *stcb,
+		struct sctp_nets *net, struct timeval deadline);
+
 void
 sctp_timer_start(int, struct sctp_inpcb *, struct sctp_tcb *,
     struct sctp_nets *);

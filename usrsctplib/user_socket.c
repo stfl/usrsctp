@@ -905,6 +905,11 @@ usrsctp_sendv(struct socket *so,
 			sinfo.sinfo_flags |= PR_SCTP_POLICY(((struct sctp_sendv_spa *)info)->sendv_prinfo.pr_policy);
 			sinfo.sinfo_timetolive = ((struct sctp_sendv_spa *)info)->sendv_prinfo.pr_value;
 		}
+		/* TODO make a SCTP_SEND_DPRINFO_VALID flag */
+		if (((struct sctp_sendv_spa *)info)->sendv_dprinfo.dpr_enabled) {
+			sinfo.dpr_enabled = ((struct sctp_sendv_spa *)info)->sendv_dprinfo.dpr_enabled;
+			sinfo.rtx_deadline = ((struct sctp_sendv_spa *)info)->sendv_dprinfo.deadline;
+		}
 		if (((struct sctp_sendv_spa *)info)->sendv_flags & SCTP_SEND_AUTHINFO_VALID) {
 			errno = EINVAL;
 			return (-1);

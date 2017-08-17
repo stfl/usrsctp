@@ -458,6 +458,7 @@ struct sctp_data_chunkrec {
 	 */
 	uint32_t fast_retran_tsn;	/* sending_seq at the time of FR */
 	struct timeval timetodrop;	/* time we drop it from queue */
+	struct timeval rtx_deadline; /* time when to RTX for DPR */
 	uint32_t fsn;			/* Fragment Sequence Number */
 	uint8_t doing_fast_retransmit;
 	uint8_t rcv_flags;	/* flags pulled from data chunk on inbound for
@@ -466,6 +467,7 @@ struct sctp_data_chunkrec {
 	uint8_t state_flags;
 	uint8_t chunk_was_revoked;
 	uint8_t fwd_tsn_cnt;
+
 };
 
 TAILQ_HEAD(sctpchunk_listhead, sctp_tmit_chunk);
@@ -495,6 +497,7 @@ struct sctp_tmit_chunk {
 	struct mbuf *last_mbuf;	/* pointer to last mbuf in chain */
 	struct sctp_nets *whoTo;
 	TAILQ_ENTRY(sctp_tmit_chunk) sctp_next;	/* next link */
+	uint8_t dpr_enabled;
 	int32_t sent;		/* the send status */
 	uint16_t snd_count;	/* number of times I sent */
 	uint16_t flags;		/* flags, such as FRAGMENT_OK */
@@ -574,6 +577,8 @@ struct sctp_stream_queue_pending {
 	struct mbuf *data;
 	struct mbuf *tail_mbuf;
 	struct timeval ts;
+	uint8_t dpr_enabled;
+	struct timeval rtx_deadline; /* time the chunk has to be sent to arrive within the deadline */
 	struct sctp_nets *net;
 	TAILQ_ENTRY (sctp_stream_queue_pending) next;
 	TAILQ_ENTRY (sctp_stream_queue_pending) ss_next;
@@ -838,6 +843,13 @@ struct sctp_asconf_ack {
 	uint16_t len;
 };
 
+TAILQ_HEAD(sctp_dpr_timers_head, sctp_dpr_timer);
+struct sctp_dpr_timer {
+	TAILQ_ENTRY(sctp_dpr_timer) next;
+	struct timeval rtx_deadline;
+	struct sctp_timer tmr;
+};
+
 /*
  * Here we have information about each individual association that we track.
  * We probably in production would be more dynamic. But for ease of
@@ -865,6 +877,10 @@ struct sctp_association {
 	struct sctp_timer autoclose_timer;	/* automatic close timer */
 	struct sctp_timer delayed_event_timer;	/* timer for delayed events */
 	struct sctp_timer delete_prim_timer;	/* deleting primary dst */
+
+	struct sctp_dpr_timers_head dpr_timers_head; /* a list of dpr timers */
+	uint32_t timodpr_cnt;
+	uint32_t dpr_chunks_flagged;
 
 	/* list of restricted local addresses */
 	struct sctpladdr sctp_restricted_addrs;

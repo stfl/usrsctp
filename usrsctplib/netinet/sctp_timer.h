@@ -91,6 +91,10 @@ void sctp_audit_retranmission_queue(struct sctp_association *);
 
 void sctp_iterator_timer(struct sctp_iterator *it);
 
+void sctp_dpr_timer(struct sctp_tcb *stcb, struct timeval *deadline);
+
+void sctp_dpr_timer_posix(struct sctp_tcb *stcb, struct timeval *deadline);
+
 #if defined(__APPLE__)
 #if defined(APPLE_LEOPARD) || defined(APPLE_SNOWLEOPARD) || defined(APPLE_LION) || defined(APPLE_MOUNTAINLION)
 void sctp_slowtimo(void);
