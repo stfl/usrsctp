@@ -1637,7 +1637,7 @@ sctp_dpr_timer(struct sctp_tcb *stcb, struct timeval *deadline)
 /* #if defined(SCTP_DPR_TIMER_AUDIT) */
 	(void)SCTP_GETTIME_TIMEVAL(&now);
 	timersub(&now, deadline, &diff);
-	SCTPDBG(SCTP_DEBUG_TIMER3, "sctp_dpr_timer() now:[ %ld.%06ld ] dl:[ %ld.%06ld ]\t\t(+%3dms)\n",
+	SCTPDBG(SCTP_DEBUG_TIMER3, "DPR handler now:[ %ld.%06ld ] dl:[ %ld.%06ld ]\t\t(+%3dms)\n",
 			now.tv_sec, now.tv_usec,
 			deadline->tv_sec, deadline->tv_usec,
 	        (diff.tv_sec*1000 + diff.tv_usec/1000));

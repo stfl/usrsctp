@@ -14659,10 +14659,10 @@ skip_preblock:
  * #endif
  *             rtx_deadline.tv_usec = rtx_deadline.tv_usec / 5000 * 5000; // round down to next 5 ms */
 
-			timersub(&sp->rtx_deadline, &now, &now);
-			SCTPDBG(SCTP_DEBUG_TIMER3, "Starting DRP Timer for: [ %ld.%06ld ](+%3dms)\n",
-					sp->rtx_deadline.tv_sec, sp->rtx_deadline.tv_usec,
-					(now.tv_sec*1000 + now.tv_usec/1000));
+			/* timersub(&sp->rtx_deadline, &now, &now);
+			 * SCTPDBG(SCTP_DEBUG_TIMER3, "Starting DPR Timer for: [ %ld.%06ld ](+%3dms)\n",
+			 *         sp->rtx_deadline.tv_sec, sp->rtx_deadline.tv_usec,
+			 *         (now.tv_sec*1000 + now.tv_usec/1000)); */
 
 			sctp_timer_start_dpr(t_inp, stcb, net, sp->rtx_deadline);
 			/* sp->dpr_enabled = 1; */
