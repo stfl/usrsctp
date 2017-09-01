@@ -881,6 +881,17 @@ struct sctp_association {
 	struct sctp_dpr_timers_head dpr_timers_head; /* a list of dpr timers */
 	uint32_t timodpr_cnt;
 	uint32_t dpr_chunks_flagged;
+#if defined(__FreeBSD__) && __FreeBSD_version >= 503000
+	struct mtx dpr_timer_mtx;
+#elif defined(SCTP_PROCESS_LEVEL_LOCKS)
+	userland_mutex_t dpr_timer_mtx;
+#elif defined(__APPLE__)
+	lck_mtx_t* dpr_timer_mtx;
+#elif defined(__Windows__)
+	struct spinlock dpt_timer_lock;
+#elif defined(__Userspace__)
+    /* TODO decide on __Userspace__ locks */
+#endif
 
 	/* list of restricted local addresses */
 	struct sctpladdr sctp_restricted_addrs;

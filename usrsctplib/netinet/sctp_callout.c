@@ -119,11 +119,12 @@ sctp_os_timer_start(sctp_os_timer_t *c, int to_ticks, void (*ftn) (void *),
 	c->c_time = ticks + to_ticks;
 
 	struct sctp_timer *tmr = (struct sctp_timer *)arg;
-	if (tmr->type == SCTP_TIMER_TYPE_DPR)
+	if (tmr->type == SCTP_TIMER_TYPE_DPR) {
 		// insert the DPR timers at head to give them highest priority
 		TAILQ_INSERT_HEAD(&SCTP_BASE_INFO(callqueue), c, tqe);
-	else
+	} else {
 		TAILQ_INSERT_TAIL(&SCTP_BASE_INFO(callqueue), c, tqe);
+	}
 	SCTP_TIMERQ_UNLOCK();
 }
 

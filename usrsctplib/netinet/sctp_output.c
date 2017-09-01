@@ -10385,7 +10385,7 @@ sctp_chunk_retransmission(struct sctp_inpcb *inp,
 					 *         (now_call.tv_sec*1000 + now_call.tv_usec/1000));
 					 * SCTP_STAT_INCR(sctps_dpr_pre_deadline); */
 				} else {
-					SCTPDBG(SCTP_DEBUG_TIMER3, "Sending RTX of DPR Chunk TSN:\t%10lu [ %ld.%06ld ](+%3dms)\n",
+					SCTPDBG(SCTP_DEBUG_TIMER3, "Sending RTX of DPR Chunk TSN:\t%10lu [ %ld.%06ld ](%+4dms)\n",
 							ntohl(chk->rec.data.tsn),
 							chk->rec.data.rtx_deadline.tv_sec, chk->rec.data.rtx_deadline.tv_usec,
 							(now_call.tv_sec*1000 + now_call.tv_usec/1000));
@@ -14665,8 +14665,6 @@ skip_preblock:
 			 *         (now.tv_sec*1000 + now.tv_usec/1000)); */
 
 			sctp_timer_start_dpr(t_inp, stcb, net, sp->rtx_deadline);
-			/* sp->dpr_enabled = 1; */
-			/* sp->rtx_deadline = rtx_deadline; */
 		}
 
 		SCTP_TCB_SEND_UNLOCK(stcb);

@@ -1126,11 +1126,9 @@ struct sctpstat {
 	/* DPR related */
 	uint32_t  sctps_timodpr;			 /* Number of dpr timers expired */
 	uint32_t  sctps_dpr_flagged;         /* Number of DPR chunks flagged for retransmission */
-	/* uint32_t  sctps_dpr_pre_deadline;         [> Number of chunks retransmitted before the deadline <] */
-	/* double  sctps_dpr_avg_delay_timer; [> Average delay of the timer after the deadline <] */
-	/* double  sctps_dpr_avg_delay_tx;	 [> Average delay of the transmission after the deadline <] */
+	uint32_t  sctps_dpr_avg_delay_timer; /* Average delay of the timer after the deadline */
 
-	uint32_t  sctps_reserved[29];        /* Future ABI compat - remove int's from here when adding new */
+	uint32_t  sctps_reserved[28];        /* Future ABI compat - remove int's from here when adding new */
 };
 
 #define SCTP_STAT_INCR(_x) SCTP_STAT_INCR_BY(_x,1)

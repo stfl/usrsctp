@@ -5139,6 +5139,7 @@ sctp_aloc_assoc(struct sctp_inpcb *inp, struct sockaddr *firstaddr,
 	SCTP_OS_TIMER_INIT(&asoc->delayed_event_timer.timer);
 	SCTP_OS_TIMER_INIT(&asoc->delete_prim_timer.timer);
 
+	SCTP_DPR_TIMER_LOCK_INIT(asoc);
 	TAILQ_INIT(&asoc->dpr_timers_head);
 
 	LIST_INSERT_HEAD(&inp->sctp_asoc_list, stcb, sctp_tcblist);

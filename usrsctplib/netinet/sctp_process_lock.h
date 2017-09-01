@@ -420,6 +420,16 @@
 #define SCTP_TCB_UNLOCK(_tcb)	(void)pthread_mutex_unlock(&(_tcb)->tcb_mtx)
 
 #define SCTP_TCB_LOCK_ASSERT(_tcb)
+
+#define SCTP_DPR_TIMER_LOCK_INIT(_asoc) \
+	(void)pthread_mutex_init(&(_asoc)->dpr_timer_mtx, NULL)
+
+#define SCTP_DPR_TIMER_LOCK(_asoc)  do {					\
+	(void)pthread_mutex_lock(&(_asoc)->dpr_timer_mtx);			\
+} while (0)
+
+#define SCTP_DPR_TIMER_UNLOCK(_asoc)	(void)pthread_mutex_unlock(&(_asoc)->dpr_timer_mtx)
+
 #endif
 
 #endif /* SCTP_PER_SOCKET_LOCKING */
