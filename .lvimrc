@@ -1,0 +1,35 @@
+let g:grayout_cmd_line = "gcc -x c -w -P -E -nosdtinc"
+         \." -DHAVE_LINUX_IF_ADDR_H"
+         \." -DHAVE_LINUX_RTNETLINK_H"
+         \." -DHAVE_NETINET_IP_ICMP_H"
+         \." -DHAVE_STDATOMIC_H"
+         \." -DHAVE_SYS_QUEUE_H"
+         \." -DINET"
+         \." -DINET6"
+         \." -DSCTP_DEBUG"
+         \." -DSCTP_PROCESS_LEVEL_LOCKS"
+         \." -DSCTP_SIMPLE_ALLOCATOR"
+         \." -D_GNU_SOURCE"
+         \." -D__Userspace__"
+         \." -D__Userspace_os_Linux"
+         \." -"
+
+
+set foldminlines=2
+
+set tabstop=4
+set shiftwidth=4
+set softtabstop=4
+set noexpandtab
+
+let g:airline#extensions#whitespace#enabled = 0
+let b:airline_whitespace_disabled = 1
+silent! call airline#extensions#whitespace#disable()
+
+" gcc -x c -w -P -E
+"     -DENABLE_FEATURE_X
+"     -DANOTHER_FLAG
+"     -DSOME_CONSTANT=42
+"     -nostdinc
+"     -
+
