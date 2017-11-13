@@ -67,6 +67,9 @@ sctp_enforce_cwnd_limit(struct sctp_association *assoc, struct sctp_nets *net)
 			net->cwnd = net->mtu - sizeof(struct sctphdr);
 		}
 	}
+	if (net->cwnd < (25 * net->mtu)) {
+		net->cwnd = (25 * net->mtu);
+	}
 }
 
 static void
@@ -1162,6 +1165,7 @@ sctp_cwnd_update_after_timeout(struct sctp_tcb *stcb, struct sctp_nets *net)
 		net->ssthresh = max(net->cwnd / 2, 4 * net->mtu);
 	}
 	net->cwnd = net->mtu;
+	sctp_enforce_cwnd_limit(&stcb->asoc, net);
 	net->partial_bytes_acked = 0;
 #if defined(__FreeBSD__) && __FreeBSD_version >= 803000
 	SDT_PROBE5(sctp, cwnd, net, to,

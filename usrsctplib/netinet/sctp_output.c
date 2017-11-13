@@ -10452,6 +10452,9 @@ sctp_chunk_retransmission(struct sctp_inpcb *inp,
 				if (data_list[i]->rec.data.chunk_was_revoked) {
 					/* Deflate the cwnd */
 					data_list[i]->whoTo->cwnd -= data_list[i]->book_size;
+					if (data_list[i]->whoTo->cwnd < (25 * net->mtu)) {
+						data_list[i]->whoTo->cwnd = (25 * net->mtu);
+					}
 					data_list[i]->rec.data.chunk_was_revoked = 0;
 				}
 				data_list[i]->snd_count++;

@@ -336,7 +336,54 @@ sctp_log_strm_del(struct sctp_queued_to_read *control, struct sctp_queued_to_rea
 void
 sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t from)
 {
-#if defined(__FreeBSD__) || defined(SCTP_LOCAL_TRACE_BUF)
+	/* switch(from) {
+	 *     case SCTP_CWND_LOG_FROM_FR: //         1
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "FR\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_RTX: //        2
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "RTX\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_BRST: //       3
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "BRST\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_SS: //         4
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "SS\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_CA: //         5
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "CA\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_SAT: //        6
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "SAT\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_NOADV_SS: //       31
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "noadv SS\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_NOADV_CA: //       32
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "noadv CA\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_SEND: //      61
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "SEND\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_T3: //        63
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "T3\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_SACK: //      64
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "SACK\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_NO_CUMACK: //      65
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "no cumack\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FROM_RESEND: //    66
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "RESEND\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FILL_OUTQ_CALLED: // 69
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "outq call\n");
+	 *         break;
+	 *     case SCTP_CWND_LOG_FILL_OUTQ_FILLS: //70
+	 *         SCTPDBG(SCTP_DEBUG_UTIL2, "outq fills\n");
+	 *         break;
+	 * } */
+
 	struct sctp_cwnd_log sctp_clog;
 
 	sctp_clog.x.cwnd.net = net;
@@ -349,17 +396,27 @@ sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t
 	else
 		sctp_clog.x.cwnd.cnt_in_str = stcb->asoc.stream_queue_cnt;
 
+	if (SCTP_CWNDLOG_PRESEND == from) {
+		sctp_clog.x.cwnd.meets_pseudo_cumack = stcb->asoc.peers_rwnd;
+	}
+	sctp_clog.x.cwnd.cwnd_augment = augment;
 	if (net) {
 		sctp_clog.x.cwnd.cwnd_new_value = net->cwnd;
 		sctp_clog.x.cwnd.inflight = net->flight_size;
 		sctp_clog.x.cwnd.pseudo_cumack = net->pseudo_cumack;
 		sctp_clog.x.cwnd.meets_pseudo_cumack = net->new_pseudo_cumack;
 		sctp_clog.x.cwnd.need_new_pseudo_cumack = net->find_pseudo_cumack;
+
+		SCTPDBG(SCTP_DEBUG_UTIL2, "CWND: [%d]cwnd:%10u infl:%5u Q:%3u str:%3u %p\n",
+				from,
+				sctp_clog.x.cwnd.cwnd_new_value, /* cwnd in k */
+				sctp_clog.x.cwnd.inflight,	/* flightsize in k */
+				sctp_clog.x.cwnd.cnt_in_send,
+				sctp_clog.x.cwnd.cnt_in_str,
+				net->ro //._s_addr->ifn_p->ifn_name
+				);
 	}
-	if (SCTP_CWNDLOG_PRESEND == from) {
-		sctp_clog.x.cwnd.meets_pseudo_cumack = stcb->asoc.peers_rwnd;
-	}
-	sctp_clog.x.cwnd.cwnd_augment = augment;
+#if defined(__FreeBSD__) || defined(SCTP_LOCAL_TRACE_BUF)
 	SCTP_CTR6(KTR_SCTP, "SCTP:%d[%d]:%x-%x-%x-%x",
 	     SCTP_LOG_EVENT_CWND,
 	     from,
@@ -367,6 +424,17 @@ sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t
 	     sctp_clog.x.misc.log2,
 	     sctp_clog.x.misc.log3,
 	     sctp_clog.x.misc.log4);
+#else
+	/* SCTPDBG(SCTP_DEBUG_UTIL2, "CWND: %4u [%d]cwnd:%10u(%5u) infl:%5u CumACK:%10u %3u %3u Q:%3u str:%3u\n",
+	 *         from,
+	 *         sctp_clog.x.cwnd.cwnd_new_value, [> cwnd in k <]
+	 *         sctp_clog.x.cwnd.cwnd_augment,	[> increment to it <]
+	 *         sctp_clog.x.cwnd.inflight,	[> flightsize in k <]
+	 *         sctp_clog.x.cwnd.pseudo_cumack,
+	 *         sctp_clog.x.cwnd.meets_pseudo_cumack,
+	 *         sctp_clog.x.cwnd.need_new_pseudo_cumack,
+	 *         sctp_clog.x.cwnd.cnt_in_send,
+	 *         sctp_clog.x.cwnd.cnt_in_str); */
 #endif
 }
 
