@@ -67,8 +67,8 @@ sctp_enforce_cwnd_limit(struct sctp_association *assoc, struct sctp_nets *net)
 			net->cwnd = net->mtu - sizeof(struct sctphdr);
 		}
 	}
-	if (net->cwnd < (25 * net->mtu)) {
-		net->cwnd = (25 * net->mtu);
+	if (net->cwnd < (125 * net->mtu)) {
+		net->cwnd = (125 * net->mtu);
 	}
 }
 
