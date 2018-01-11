@@ -385,6 +385,7 @@ sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t
 	 * } */
 
 	struct sctp_cwnd_log sctp_clog;
+	struct timeval now;
 
 	sctp_clog.x.cwnd.net = net;
 	if (stcb->asoc.send_queue_cnt > 255)
@@ -407,6 +408,18 @@ sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t
 		sctp_clog.x.cwnd.meets_pseudo_cumack = net->new_pseudo_cumack;
 		sctp_clog.x.cwnd.need_new_pseudo_cumack = net->find_pseudo_cumack;
 
+		if (from == SCTP_CWND_LOG_FROM_RTX) {
+			(void)SCTP_GETTIME_TIMEVAL(&now);
+			SCTPDBG(SCTP_DEBUG_UTIL2, "CWND: [%2d]cwnd:%10u infl:%5u Q:%3u str:%3u %p [ %ld.%06ld ]"
+					, from
+					, sctp_clog.x.cwnd.cwnd_new_value /* cwnd in k */
+					, sctp_clog.x.cwnd.inflight			/* flightsize in k */
+					, sctp_clog.x.cwnd.cnt_in_send
+					, sctp_clog.x.cwnd.cnt_in_str
+					, net->ro //._s_addr->ifn_p->ifn_name
+					, now.tv_sec, now.tv_usec
+				   );
+		} else {
 		SCTPDBG(SCTP_DEBUG_UTIL2, "CWND: [%d]cwnd:%10u infl:%5u Q:%3u str:%3u %p\n",
 				from,
 				sctp_clog.x.cwnd.cwnd_new_value, /* cwnd in k */
@@ -415,6 +428,7 @@ sctp_log_cwnd(struct sctp_tcb *stcb, struct sctp_nets *net, int augment, uint8_t
 				sctp_clog.x.cwnd.cnt_in_str,
 				net->ro //._s_addr->ifn_p->ifn_name
 				);
+		}
 	}
 #if defined(__FreeBSD__) || defined(SCTP_LOCAL_TRACE_BUF)
 	SCTP_CTR6(KTR_SCTP, "SCTP:%d[%d]:%x-%x-%x-%x",
